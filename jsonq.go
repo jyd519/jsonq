@@ -1,14 +1,17 @@
 package jsonq
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
-// JsonQuery is an object that enables querying of a Go map with a simple
+// JsonQuery is an object that enables querying of a Go interface with a simple
 // positional query language.
 type JsonQuery struct {
-	blob map[string]interface{}
+	blob                    interface{}
+	SingleValuePanicOnError bool
 }
 
 // stringFromInterface converts an interface{} to a string and returns an error if types don't match.
@@ -16,6 +19,11 @@ func stringFromInterface(val interface{}) (string, error) {
 	switch val.(type) {
 	case string:
 		return val.(string), nil
+	case *string:
+		if val.(*string) == nil {
+			return "", nil
+		}
+		return *val.(*string), nil
 	}
 	return "", fmt.Errorf("Expected string value for String, got \"%v\"\n", val)
 }
@@ -25,6 +33,8 @@ func boolFromInterface(val interface{}) (bool, error) {
 	switch val.(type) {
 	case bool:
 		return val.(bool), nil
+	case *bool:
+		return *val.(*bool), nil
 	}
 	return false, fmt.Errorf("Expected boolean value for Bool, got \"%v\"\n", val)
 }
@@ -41,6 +51,21 @@ func floatFromInterface(val interface{}) (float64, error) {
 		if err == nil {
 			return fval, nil
 		}
+	case json.Number:
+		return val.(json.Number).Float64()
+	case *float64:
+		return *val.(*float64), nil
+	case *int:
+		return float64(*val.(*int)), nil
+	case *string:
+		fval, err := strconv.ParseFloat(*val.(*string), 64)
+		if err == nil {
+			return fval, nil
+		}
+	case int64:
+		return float64(val.(int64)), nil
+	case uint64:
+		return float64(val.(uint64)), nil
 	}
 	return 0.0, fmt.Errorf("Expected numeric value for Float, got \"%v\"\n", val)
 }
@@ -51,12 +76,32 @@ func intFromInterface(val interface{}) (int, error) {
 	case float64:
 		return int(val.(float64)), nil
 	case string:
-		ival, err := strconv.ParseFloat(val.(string), 64)
+		i, err := strconv.Atoi(val.(string))
 		if err == nil {
-			return int(ival), nil
+			return i, nil
 		}
 	case int:
 		return val.(int), nil
+	case json.Number:
+		i, err := val.(json.Number).Int64()
+		return int(i), err
+	case int32:
+		return int(val.(int32)), nil
+	case *int:
+		return *val.(*int), nil
+	case *int32:
+		return int(*val.(*int32)), nil
+	case *float64:
+		return int(*val.(*float64)), nil
+	case *string:
+		i, err := strconv.Atoi(*val.(*string))
+		if err == nil {
+			return i, nil
+		}
+	case int64:
+		return int(val.(int64)), nil
+	case uint64:
+		return int(val.(uint64)), nil
 	}
 	return 0, fmt.Errorf("Expected numeric value for Int, got \"%v\"\n", val)
 }
@@ -66,6 +111,8 @@ func objectFromInterface(val interface{}) (map[string]interface{}, error) {
 	switch val.(type) {
 	case map[string]interface{}:
 		return val.(map[string]interface{}), nil
+	case *map[string]interface{}:
+		return *val.(*map[string]interface{}), nil
 	}
 	return map[string]interface{}{}, fmt.Errorf("Expected json object for Object, got \"%v\"\n", val)
 }
@@ -75,6 +122,8 @@ func arrayFromInterface(val interface{}) ([]interface{}, error) {
 	switch val.(type) {
 	case []interface{}:
 		return val.([]interface{}), nil
+	case *[]interface{}:
+		return *val.(*[]interface{}), nil
 	}
 	return []interface{}{}, fmt.Errorf("Expected json array for Array, got \"%v\"\n", val)
 }
@@ -82,8 +131,14 @@ func arrayFromInterface(val interface{}) ([]interface{}, error) {
 // NewQuery creates a new JsonQuery obj from an interface{}.
 func NewQuery(data interface{}) *JsonQuery {
 	j := new(JsonQuery)
-	j.blob = data.(map[string]interface{})
+	j.blob = data
+	j.SingleValuePanicOnError = true
 	return j
+}
+
+// Get extracts a untyped field from the JsonQuery
+func (j *JsonQuery) Get(s ...string) (interface{}, error) {
+	return rquery(j.blob, s...)
 }
 
 // Bool extracts a bool the JsonQuery
@@ -95,6 +150,18 @@ func (j *JsonQuery) Bool(s ...string) (bool, error) {
 	return boolFromInterface(val)
 }
 
+// AsBool extracts a bool the JsonQuery, but panics on error so it can be used inline
+func (j *JsonQuery) AsBool(s ...string) bool {
+	val, err := j.Bool(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+		return false
+	}
+	return val
+}
+
 // Float extracts a float from the JsonQuery
 func (j *JsonQuery) Float(s ...string) (float64, error) {
 	val, err := rquery(j.blob, s...)
@@ -102,6 +169,18 @@ func (j *JsonQuery) Float(s ...string) (float64, error) {
 		return 0.0, err
 	}
 	return floatFromInterface(val)
+}
+
+// AsFloat extracts a float from the JsonQuery, but panics on error so it can be used inline
+func (j *JsonQuery) AsFloat(s ...string) float64 {
+	val, err := j.Float(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+		return 0.0
+	}
+	return val
 }
 
 // Int extracts an int from the JsonQuery
@@ -113,6 +192,17 @@ func (j *JsonQuery) Int(s ...string) (int, error) {
 	return intFromInterface(val)
 }
 
+// AsInt extracts an int from the JsonQuery, but panics on error so it can be used inline
+func (j *JsonQuery) AsInt(s ...string) int {
+	val, err := j.Int(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+	}
+	return val
+}
+
 // String extracts a string from the JsonQuery
 func (j *JsonQuery) String(s ...string) (string, error) {
 	val, err := rquery(j.blob, s...)
@@ -120,6 +210,26 @@ func (j *JsonQuery) String(s ...string) (string, error) {
 		return "", err
 	}
 	return stringFromInterface(val)
+}
+
+// AsString extracts a string from the JsonQuery, but panics on error so it can be used inline
+func (j *JsonQuery) AsString(s ...string) string {
+	val, err := j.String(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+	}
+	return val
+}
+
+// Exists return true if node can be accessed, else false
+func (j *JsonQuery) Exists(s ...string) bool {
+	_, err := j.Interface(s...)
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 // Get extracts a untyped field from the JsonQuery
@@ -154,6 +264,17 @@ func (j *JsonQuery) MustQuery(s ...string) *JsonQuery {
 	return NewQuery(obj)
 }
 
+// AsObject extracts a json object from the JsonQuery, but panics on error so it can be used inline
+func (j *JsonQuery) AsObject(s ...string) map[string]interface{} {
+	val, err := j.Object(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+	}
+	return val
+}
+
 // Array extracts a []interface{} from the JsonQuery
 func (j *JsonQuery) Array(s ...string) ([]interface{}, error) {
 	val, err := rquery(j.blob, s...)
@@ -163,6 +284,17 @@ func (j *JsonQuery) Array(s ...string) ([]interface{}, error) {
 	return arrayFromInterface(val)
 }
 
+// AsArray extracts a []interface{} from the JsonQuery, but panics on error so it can be used inline
+func (j *JsonQuery) AsArray(s ...string) []interface{} {
+	val, err := j.Array(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+	}
+	return val
+}
+
 // Interface extracts an interface{} from the JsonQuery
 func (j *JsonQuery) Interface(s ...string) (interface{}, error) {
 	val, err := rquery(j.blob, s...)
@@ -170,6 +302,17 @@ func (j *JsonQuery) Interface(s ...string) (interface{}, error) {
 		return nil, err
 	}
 	return val, nil
+}
+
+// AsInterface extracts an interface{} from the JsonQuery, but panics on error so it can be used inline
+func (j *JsonQuery) AsInterface(s ...string) interface{} {
+	val, err := j.Interface(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+	}
+	return val
 }
 
 // ArrayOfStrings extracts an array of strings from some json
@@ -188,6 +331,17 @@ func (j *JsonQuery) ArrayOfStrings(s ...string) ([]string, error) {
 	return toReturn, nil
 }
 
+// AsArrayOfStrings extracts an array of strings from some json, but panics on error so it can be used inline
+func (j *JsonQuery) AsArrayOfStrings(s ...string) []string {
+	val, err := j.ArrayOfStrings(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+	}
+	return val
+}
+
 // ArrayOfInts extracts an array of ints from some json
 func (j *JsonQuery) ArrayOfInts(s ...string) ([]int, error) {
 	array, err := j.Array(s...)
@@ -202,6 +356,17 @@ func (j *JsonQuery) ArrayOfInts(s ...string) ([]int, error) {
 		}
 	}
 	return toReturn, nil
+}
+
+// AsArrayOfInts extracts an array of ints from some json, but panics on error so it can be used inline
+func (j *JsonQuery) AsArrayOfInts(s ...string) []int {
+	val, err := j.ArrayOfInts(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+	}
+	return val
 }
 
 // ArrayOfFloats extracts an array of float64s from some json
@@ -220,6 +385,17 @@ func (j *JsonQuery) ArrayOfFloats(s ...string) ([]float64, error) {
 	return toReturn, nil
 }
 
+// AsArrayOfFloats extracts an array of float64s from some json, but panics on error so it can be used inline
+func (j *JsonQuery) AsArrayOfFloats(s ...string) []float64 {
+	val, err := j.ArrayOfFloats(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+	}
+	return val
+}
+
 // ArrayOfBools extracts an array of bools from some json
 func (j *JsonQuery) ArrayOfBools(s ...string) ([]bool, error) {
 	array, err := j.Array(s...)
@@ -234,6 +410,17 @@ func (j *JsonQuery) ArrayOfBools(s ...string) ([]bool, error) {
 		}
 	}
 	return toReturn, nil
+}
+
+// AsArrayOfBools extracts an array of bools from some json, but panics on error so it can be used inline
+func (j *JsonQuery) AsArrayOfBools(s ...string) []bool {
+	val, err := j.ArrayOfBools(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+	}
+	return val
 }
 
 // ArrayOfObjects extracts an array of map[string]interface{} (objects) from some json
@@ -252,6 +439,17 @@ func (j *JsonQuery) ArrayOfObjects(s ...string) ([]map[string]interface{}, error
 	return toReturn, nil
 }
 
+// AsArrayOfObjects extracts an array of map[string]interface{} (objects) from some json, but panics on error so it can be used inline
+func (j *JsonQuery) AsArrayOfObjects(s ...string) []map[string]interface{} {
+	val, err := j.ArrayOfObjects(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+	}
+	return val
+}
+
 // ArrayOfArrays extracts an array of []interface{} (arrays) from some json
 func (j *JsonQuery) ArrayOfArrays(s ...string) ([][]interface{}, error) {
 	array, err := j.Array(s...)
@@ -268,9 +466,25 @@ func (j *JsonQuery) ArrayOfArrays(s ...string) ([][]interface{}, error) {
 	return toReturn, nil
 }
 
+// AsArrayOfArrays extracts an array of []interface{} (arrays) from some json, but panics on error so it can be used inline
+func (j *JsonQuery) AsArrayOfArrays(s ...string) [][]interface{} {
+	val, err := j.ArrayOfArrays(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+	}
+	return val
+}
+
 // Matrix2D is an alias for ArrayOfArrays
 func (j *JsonQuery) Matrix2D(s ...string) ([][]interface{}, error) {
 	return j.ArrayOfArrays(s...)
+}
+
+// AsMatrix2D is an alias for ArrayOfArrays
+func (j *JsonQuery) AsMatrix2D(s ...string) [][]interface{} {
+	return j.AsArrayOfArrays(s...)
 }
 
 // Recursively query a decoded json blob
@@ -279,8 +493,17 @@ func rquery(blob interface{}, s ...string) (interface{}, error) {
 		val interface{}
 		err error
 	)
+
+	// If there is only a single string argument and if that single string argument has either a "." or a "[" in it
+	// the assume it is a path specification and disagregate it into an array of indexes.
+	terms := s
+	if len(s) == 1 && strings.IndexAny(s[0], ".[]") != -1 {
+		terms = strings.FieldsFunc(s[0], func(c rune) bool {
+			return c == '.' || c == '[' || c == ']'
+		})
+	}
 	val = blob
-	for _, q := range s {
+	for _, q := range terms {
 		val, err = query(val, q)
 		if err != nil {
 			return nil, err
