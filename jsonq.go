@@ -131,6 +131,20 @@ func (j *JsonQuery) Object(s ...string) (map[string]interface{}, error) {
 	return objectFromInterface(val)
 }
 
+// Query extracts a new query from the object at the path
+func (j *JsonQuery) Query(s ...string) (*JsonQuery, error) {
+	obj, err := j.Object(s...)
+	if err != nil {
+		return nil, err
+	}
+	return NewQuery(obj), nil
+}
+
+// AsQuery extracts a new query from the object at the path, but panics on error so it can be used inline
+func (j *JsonQuery) AsQuery(s ...string) *JsonQuery {
+	return NewQuery(j.AsObject(s...))
+}
+
 // Array extracts a []interface{} from the JsonQuery
 func (j *JsonQuery) Array(s ...string) ([]interface{}, error) {
 	val, err := rquery(j.blob, s...)
