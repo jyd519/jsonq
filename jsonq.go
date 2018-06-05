@@ -122,6 +122,11 @@ func (j *JsonQuery) String(s ...string) (string, error) {
 	return stringFromInterface(val)
 }
 
+// Get extracts a untyped field from the JsonQuery
+func (j *JsonQuery) Get(s ...string) (interface{}, error) {
+	return rquery(j.blob, s...)
+}
+
 // Object extracts a json object from the JsonQuery
 func (j *JsonQuery) Object(s ...string) (map[string]interface{}, error) {
 	val, err := rquery(j.blob, s...)
@@ -140,9 +145,13 @@ func (j *JsonQuery) Query(s ...string) (*JsonQuery, error) {
 	return NewQuery(obj), nil
 }
 
-// AsQuery extracts a new query from the object at the path, but panics on error so it can be used inline
-func (j *JsonQuery) AsQuery(s ...string) *JsonQuery {
-	return NewQuery(j.AsObject(s...))
+// MustQuery extracts a new query from the object at the path, but panics on error so it can be used inline
+func (j *JsonQuery) MustQuery(s ...string) *JsonQuery {
+	obj, err := j.Object(s...)
+	if err != nil {
+		panic(err)
+	}
+	return NewQuery(obj)
 }
 
 // Array extracts a []interface{} from the JsonQuery
