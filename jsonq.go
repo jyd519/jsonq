@@ -3,6 +3,7 @@ package jsonq
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -136,6 +137,21 @@ func NewQuery(data interface{}) *JsonQuery {
 	return j
 }
 
+// Parse creates a new JsonQuery obj from io.Reader
+func Parse(r io.Reader) (*JsonQuery, error) {
+	data := map[string]interface{}{}
+	d := json.NewDecoder(r)
+	err := d.Decode(&data)
+	if err != nil {
+		return nil, err
+	}
+
+	j := new(JsonQuery)
+	j.blob = data
+	j.SingleValuePanicOnError = true
+	return j, nil
+}
+
 // Get extracts a untyped field from the JsonQuery
 func (j *JsonQuery) Get(s ...string) (interface{}, error) {
 	return rquery(j.blob, s...)
@@ -230,11 +246,6 @@ func (j *JsonQuery) Exists(s ...string) bool {
 		return false
 	}
 	return true
-}
-
-// Get extracts a untyped field from the JsonQuery
-func (j *JsonQuery) Get(s ...string) (interface{}, error) {
-	return rquery(j.blob, s...)
 }
 
 // Object extracts a json object from the JsonQuery
