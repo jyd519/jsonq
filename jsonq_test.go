@@ -359,3 +359,106 @@ func mPtr(m map[string]interface{}) *map[string]interface{} {
 func aPtr(a []interface{}) *[]interface{} {
 	return &a
 }
+
+func BenchmarkQuery(b *testing.B) {
+	data := map[string]interface{}{}
+	dec := json.NewDecoder(strings.NewReader(TestData))
+	dec.Decode(&data)
+	for i := 0; i < b.N; i++ {
+		q := NewQuery(data)
+		q.Int("foo")
+		q.Int("bar")
+		q.Int("subobj", "foo")
+		// test that strings can get int-ed
+		q.Int("numstring")
+		for i := 0; i < 3; i++ {
+			q.Int("subobj", "subarray", fmt.Sprintf("%d", i))
+		}
+
+		q.Float("baz")
+		// test that strings can get float-ed
+		q.Float("floatstring")
+		q.String("test")
+		q.String("subobj", "subsubobj", "array", "0")
+		q.Bool("bool")
+		obj, _ := q.Object("subobj", "subsubobj")
+		q2 := NewQuery(obj)
+		q2.String("array", "1")
+		q.Array("subobj", "subarray")
+
+		q.Interface("numstring")
+
+		//test array of strings
+		q.ArrayOfStrings("collections", "strings")
+		//test array of ints
+		q.ArrayOfInts("collections", "numbers")
+		//test array of floats
+		q.ArrayOfFloats("collections", "numbers")
+
+		//test array of bools
+		q.ArrayOfBools("collections", "bools")
+		//test array of arrays
+		q.ArrayOfArrays("collections", "arrays")
+
+		//test array of objs
+		q.ArrayOfObjects("collections", "objects")
+	}
+}
+
+func BenchmarkQuery_Path(b *testing.B) {
+	data := map[string]interface{}{}
+	dec := json.NewDecoder(strings.NewReader(TestData))
+	dec.Decode(&data)
+	for i := 0; i < b.N; i++ {
+		q := NewQuery(data)
+		q.Int("foo")
+		q.Int("bar")
+		q.Int("subobj.foo")
+		// test that strings can get int-ed
+		q.Int("numstring")
+		for i := 0; i < 3; i++ {
+			q.Int(fmt.Sprintf("subobj.subarray.%d", i))
+		}
+
+		q.Float("baz")
+		// test that strings can get float-ed
+		q.Float("floatstring")
+		q.String("test")
+		q.String("subobj.subsubobj.array.0")
+		q.Bool("bool")
+		obj, _ := q.Object("subobj.subsubobj")
+		q2 := NewQuery(obj)
+		q2.String("array.1")
+		q.Array("subobj.subarray")
+
+		q.Interface("numstring")
+
+		//test array of strings
+		q.ArrayOfStrings("collectionsstrings")
+		//test array of ints
+		q.ArrayOfInts("collections.numbers")
+		//test array of floats
+		q.ArrayOfFloats("collections.numbers")
+
+		//test array of bools
+		q.ArrayOfBools("collections.bools")
+		//test array of arrays
+		q.ArrayOfArrays("collections.arrays")
+
+		//test array of objs
+		q.ArrayOfObjects("collections.objects")
+	}
+}
+
+func BenchmarkQuery_SimplePath(b *testing.B) {
+	data := map[string]interface{}{}
+	dec := json.NewDecoder(strings.NewReader(TestData))
+	dec.Decode(&data)
+	for i := 0; i < b.N; i++ {
+		q := NewQuery(data)
+		_, err := q.String("subobj.subsubobj.array[0]")
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
