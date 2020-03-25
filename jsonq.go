@@ -133,7 +133,15 @@ func arrayFromInterface(val interface{}) ([]interface{}, error) {
 func NewQuery(data interface{}) *JsonQuery {
 	j := new(JsonQuery)
 	j.blob = data
-	j.SingleValuePanicOnError = true
+	j.SingleValuePanicOnError = false
+	return j
+}
+
+// NewUnsafeQuery creates a new JsonQuery obj from an interface{}.
+func NewUnsafeQuery(data interface{}) *JsonQuery {
+	j := new(JsonQuery)
+	j.blob = data
+	j.SingleValuePanicOnError = false
 	return j
 }
 
@@ -148,7 +156,7 @@ func Parse(r io.Reader) (*JsonQuery, error) {
 
 	j := new(JsonQuery)
 	j.blob = data
-	j.SingleValuePanicOnError = true
+	j.SingleValuePanicOnError = false
 	return j, nil
 }
 
@@ -263,7 +271,10 @@ func (j *JsonQuery) Query(s ...string) (*JsonQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewQuery(obj), nil
+	return &JsonQuery{
+		blob:                    obj,
+		SingleValuePanicOnError: j.SingleValuePanicOnError,
+	}, nil
 }
 
 // MustQuery extracts a new query from the object at the path, but panics on error so it can be used inline
@@ -272,7 +283,10 @@ func (j *JsonQuery) MustQuery(s ...string) *JsonQuery {
 	if err != nil {
 		panic(err)
 	}
-	return NewQuery(obj)
+	return &JsonQuery{
+		blob:                    obj,
+		SingleValuePanicOnError: j.SingleValuePanicOnError,
+	}
 }
 
 // AsObject extracts a json object from the JsonQuery, but panics on error so it can be used inline
@@ -459,6 +473,39 @@ func (j *JsonQuery) AsArrayOfObjects(s ...string) []map[string]interface{} {
 		}
 	}
 	return val
+}
+
+// ArrayOfQuery extracts an array of JsonQuery from some json
+func (j *JsonQuery) ArrayOfQuery(s ...string) ([]*JsonQuery, error) {
+	val, err := j.Array(s...)
+	var res []*JsonQuery
+	if err != nil {
+		return res, err
+	}
+	for _, v := range val {
+		res = append(res, &JsonQuery{
+			blob:                    v,
+			SingleValuePanicOnError: j.SingleValuePanicOnError,
+		})
+	}
+	return res, nil
+}
+
+// MustArrayOfQuery extracts an array of JsonQuery from some json
+func (j *JsonQuery) MustArrayOfQuery(s ...string) []*JsonQuery {
+	val, err := j.Array(s...)
+	var res []*JsonQuery
+	if err != nil {
+		return res
+	}
+
+	for _, v := range val {
+		res = append(res, &JsonQuery{
+			blob:                    v,
+			SingleValuePanicOnError: j.SingleValuePanicOnError,
+		})
+	}
+	return res
 }
 
 // ArrayOfArrays extracts an array of []interface{} (arrays) from some json

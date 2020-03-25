@@ -74,6 +74,15 @@ func TestQuery(t *testing.T) {
 	tErr(t, err)
 	q := NewQuery(data)
 
+	objs, err := q.ArrayOfQuery("collections.objects")
+	tErr(t, err)
+	if len(objs) != 2 {
+		t.Errorf("Expecting 2, got %v\n", len(objs))
+	}
+	if objs[0].AsInt("obj1") != 1 {
+		t.Errorf("Expecting 1, got %v\n", objs[0].AsInt("obj1"))
+	}
+
 	ival, err := q.Int("foo")
 	if ival != 1 {
 		t.Errorf("Expecting 1, got %v\n", ival)
@@ -447,6 +456,7 @@ func BenchmarkQuery_Path(b *testing.B) {
 
 		//test array of objs
 		q.ArrayOfObjects("collections.objects")
+
 	}
 }
 
