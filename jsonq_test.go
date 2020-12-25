@@ -89,9 +89,21 @@ func TestQuery(t *testing.T) {
 	}
 	tErr(t, err)
 
+	ival = q.AsInt("notexist.notexist")
+	if ival != 0 {
+		t.Errorf("Expecting 0, got %v\n", ival)
+	}
+
 	ival = q.AsInt("foo")
 	if ival != 1 {
 		t.Errorf("Expecting 1, got %v\n", ival)
+	}
+
+	{
+		val := q.AsString("foo")
+		if val != "" {
+			t.Errorf("Expecting '', got %v\n", val)
+		}
 	}
 
 	ival, err = q.Int("bar")

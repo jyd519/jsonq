@@ -137,14 +137,6 @@ func NewQuery(data interface{}) *JsonQuery {
 	return j
 }
 
-// NewUnsafeQuery creates a new JsonQuery obj from an interface{}.
-func NewUnsafeQuery(data interface{}) *JsonQuery {
-	j := new(JsonQuery)
-	j.blob = data
-	j.SingleValuePanicOnError = false
-	return j
-}
-
 // Parse creates a new JsonQuery obj from io.Reader
 func Parse(r io.Reader) (*JsonQuery, error) {
 	data := map[string]interface{}{}
