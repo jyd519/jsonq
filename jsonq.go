@@ -72,37 +72,37 @@ func floatFromInterface(val interface{}) (float64, error) {
 }
 
 // intFromInterface converts an interface{} to an int and returns an error if types don't match.
-func intFromInterface(val interface{}) (int, error) {
+func intFromInterface(val interface{}) (int64, error) {
 	switch val.(type) {
 	case float64:
-		return int(val.(float64)), nil
+		return int64(val.(float64)), nil
 	case string:
-		i, err := strconv.Atoi(val.(string))
+		i, err := strconv.ParseInt(val.(string), 10, 0)
 		if err == nil {
 			return i, nil
 		}
 	case int:
-		return val.(int), nil
+		return int64(val.(int)), nil
 	case json.Number:
 		i, err := val.(json.Number).Int64()
-		return int(i), err
+		return i, err
 	case int32:
-		return int(val.(int32)), nil
+		return int64(val.(int32)), nil
 	case *int:
-		return *val.(*int), nil
+		return int64(*val.(*int)), nil
 	case *int32:
-		return int(*val.(*int32)), nil
+		return int64(*val.(*int32)), nil
 	case *float64:
-		return int(*val.(*float64)), nil
+		return int64(*val.(*float64)), nil
 	case *string:
-		i, err := strconv.Atoi(*val.(*string))
+		i, err := strconv.ParseInt(*val.(*string), 10, 0)
 		if err == nil {
 			return i, nil
 		}
 	case int64:
-		return int(val.(int64)), nil
+		return int64(val.(int64)), nil
 	case uint64:
-		return int(val.(uint64)), nil
+		return int64(val.(uint64)), nil
 	}
 	return 0, fmt.Errorf("Expected numeric value for Int, got \"%v\"\n", val)
 }
@@ -205,12 +205,33 @@ func (j *JsonQuery) Int(s ...string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	i, err := intFromInterface(val)
+	return int(i), err
+}
+
+// Int64 extracts an int from the JsonQuery
+func (j *JsonQuery) Int64(s ...string) (int64, error) {
+	val, err := rquery(j.blob, s...)
+	if err != nil {
+		return 0, err
+	}
 	return intFromInterface(val)
 }
 
 // AsInt extracts an int from the JsonQuery, but panics on error so it can be used inline
 func (j *JsonQuery) AsInt(s ...string) int {
 	val, err := j.Int(s...)
+	if err != nil {
+		if j.SingleValuePanicOnError {
+			panic(err)
+		}
+	}
+	return val
+}
+
+// AsInt64 extracts an int from the JsonQuery, but panics on error so it can be used inline
+func (j *JsonQuery) AsInt64(s ...string) int64 {
+	val, err := j.Int64(s...)
 	if err != nil {
 		if j.SingleValuePanicOnError {
 			panic(err)
@@ -360,12 +381,12 @@ func (j *JsonQuery) AsArrayOfStrings(s ...string) []string {
 }
 
 // ArrayOfInts extracts an array of ints from some json
-func (j *JsonQuery) ArrayOfInts(s ...string) ([]int, error) {
+func (j *JsonQuery) ArrayOfInts(s ...string) ([]int64, error) {
 	array, err := j.Array(s...)
 	if err != nil {
-		return []int{}, err
+		return []int64{}, err
 	}
-	toReturn := make([]int, len(array))
+	toReturn := make([]int64, len(array))
 	for index, val := range array {
 		toReturn[index], err = intFromInterface(val)
 		if err != nil {
@@ -376,7 +397,7 @@ func (j *JsonQuery) ArrayOfInts(s ...string) ([]int, error) {
 }
 
 // AsArrayOfInts extracts an array of ints from some json, but panics on error so it can be used inline
-func (j *JsonQuery) AsArrayOfInts(s ...string) []int {
+func (j *JsonQuery) AsArrayOfInts(s ...string) []int64 {
 	val, err := j.ArrayOfInts(s...)
 	if err != nil {
 		if j.SingleValuePanicOnError {
